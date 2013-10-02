@@ -78,6 +78,7 @@ object ScaldingBuild extends Build {
         case s if s.endsWith(".html") => MergeStrategy.last
         case s if s.endsWith(".dtd") => MergeStrategy.last
         case s if s.endsWith(".xsd") => MergeStrategy.last
+        case s if s.endsWith("META-INF/maven/org.slf4j/slf4j-api/pom.xml") => MergeStrategy.last
         case x => old(x)
       }
     },
