@@ -1,10 +1,12 @@
 package com.twitter.scalding.parquet
 
 import cascading.tuple.Fields
-import com.twitter.scalding.{TupleConverter, Mappable, HadoopSchemeInstance, FixedPathSource}
-import parquet.cascading.{ParquetTBaseScheme, ParquetTupleScheme}
-import parquet.org.apache.thrift.{TFieldIdEnum, TBase}
+import com.twitter.scalding._
+import _root_.parquet.cascading.{ParquetTBaseScheme, ParquetTupleScheme}
+import _root_.parquet.org.apache.thrift.{TFieldIdEnum, TBase}
 import cascading.scheme.Scheme
+import com.twitter.scalding.typed.{TypedSink, TypedSource}
+import com.etsy.cascading.tap.local.LocalTap
 
 object ParquetSource {
   def apply(fields: Fields, path: String) =
@@ -18,14 +20,24 @@ class ParquetSource(fields: Fields, paths: Seq[String]) extends FixedPathSource(
   override def hdfsScheme = HadoopSchemeInstance(new ParquetTupleScheme(fields).asInstanceOf[Scheme[_,_,_,_,_]])
 }
 
-/*
-case class ParquetTBaseSource[T](p : String)(implicit m : Manifest[T])
-  extends FixedPathSource(p)
-  with Mappable[T]
-  with java.io.Serializable {
+trait ParquetTBase[T]
+  extends Mappable[T]
+  with TypedSource[T]
+  with TypedSink[T]
+  /* with LocalTapSource get the etsy tap for local mode */ {
 
-  val klass = m.erasure.asSubclass[TBase[_, _ <: TFieldIdEnum]](classOf[TBase[_, _ <: TFieldIdEnum]])
+  def manifest: Manifest[T] // subclasses do the implicit thing
+  def tset: TupleSetter[T]
 
-  override def hdfsScheme = HadoopSchemeInstance(new ParquetTBaseScheme(klass).asInstanceOf[Scheme[_,_,_,_,_]])
+  val klass = manifest.erasure.asSubclass[TBase[_, _ <: TFieldIdEnum]](classOf[TBase[_, _ <: TFieldIdEnum]])
+
+  def hdfsScheme = HadoopSchemeInstance(new ParquetTBaseScheme(klass).asInstanceOf[Scheme[_,_,_,_,_]])
+
   override def converter[U >: T] = TupleConverter.asSuperConverter[T, U](implicitly[TupleConverter[T]])
-}*/
+  override def setter[U <: T] = TupleSetter.asSubSetter[T, U](tset)
+}
+
+case class FixedPathParquetTBaseSource[T](path: String)
+                                         (implicit override val manifest: Manifest[T], val tset: TupleSetter[T])
+  extends FixedPathSource(path)
+  with ParquetTBase[T]
